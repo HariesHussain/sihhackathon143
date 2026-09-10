@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   HeartHandshake,
   MapPin,
@@ -12,6 +12,7 @@ import {
   X,
   Phone,
   Truck,
+  KeyRound,
 } from 'lucide-react';
 import { db, DEFAULT_NGOS } from '../services/db';
 import { AppView, SurplusDeclaration, NGO, RedistributionRequest, FoodBatch } from '../types';
@@ -24,7 +25,7 @@ interface RedistributionProps {
 }
 
 export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDataMutated }) => {
-  const { role } = useAuth();
+  const { role, switchRole } = useAuth();
   const batches = db.getBatches();
   const inspectedBatch: FoodBatch | undefined = batches.find((b) => b.status === 'INSPECTED') || batches[0];
   const surplusList = db.getSurplusList();
@@ -32,35 +33,40 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
 
   const [selectedNGOId, setSelectedNGOId] = useState<string>(DEFAULT_NGOS[0].id);
   const [successMessage, setSuccessMessage] = useState('');
+  const [requestSuccess, setRequestSuccess] = useState<{
+    ngoName: string;
+    etaMins: number;
+    distanceKm: number;
+    portions: number;
+    otp: string;
+  } | null>(null);
 
-  // Handle Kitchen Operator declaring surplus
-  const handleDeclareSurplus = () => {
-    if (!inspectedBatch) return;
-    db.declareSurplus({
-      food_batch_id: inspectedBatch.id,
-      food_name: inspectedBatch.food_name,
-      kitchen_name: inspectedBatch.kitchen_name,
-      quantity_portions: inspectedBatch.surplus_portions || 41,
-      quantity_kg: Math.round((inspectedBatch.surplus_portions || 41) * 0.25 * 10) / 10,
-      freshness_score: 94,
-      safe_window_minutes: 240,
-      available_until: new Date(Date.now() + 4 * 3600000).toISOString(),
-    });
-    setSuccessMessage('Surplus declared into active rescue pool!');
-    onDataMutated();
-  };
+  // Safe display portions (defaults to 41 if 0)
+  const displayPortions = inspectedBatch?.surplus_portions && inspectedBatch.surplus_portions > 0
+    ? inspectedBatch.surplus_portions
+    : 41;
 
   // Handle Kitchen Operator requesting pickup from NGO
   const handleRequestPickup = () => {
-    const openSurplus = surplusList.find((s) => s.status === 'OPEN') || surplusList[0];
+    let openSurplus = surplusList.find((s) => s.status === 'OPEN' || s.status === 'REQUESTED');
     const targetNGO = DEFAULT_NGOS.find((n) => n.id === selectedNGOId) || DEFAULT_NGOS[0];
 
+    // Ensure surplus is registered in pool
     if (!openSurplus) {
-      alert('Please declare a surplus batch first.');
-      return;
+      openSurplus = db.declareSurplus({
+        food_batch_id: inspectedBatch?.id || 'batch_active',
+        food_name: inspectedBatch?.food_name || 'Rice + Paneer Butter Masala',
+        kitchen_name: inspectedBatch?.kitchen_name || 'ABC College Central Kitchen',
+        quantity_portions: displayPortions,
+        quantity_kg: Math.round(displayPortions * 0.25 * 10) / 10,
+        freshness_score: 94,
+        safe_window_minutes: 240,
+        available_until: new Date(Date.now() + 4 * 3600000).toISOString(),
+      });
     }
 
-    db.createRequest({
+    // Create redistribution request
+    const newReq = db.createRequest({
       surplus_id: openSurplus.id,
       food_name: openSurplus.food_name,
       kitchen_name: openSurplus.kitchen_name,
@@ -71,11 +77,22 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
       estimated_time_mins: targetNGO.estimated_time_mins,
     });
 
-    setSuccessMessage(`Redistribution request dispatched to ${targetNGO.name}!`);
+    // Automatically accept and generate dispatch OTP for seamless demo
+    const newDisp = db.acceptRequest(newReq.id);
+
+    setRequestSuccess({
+      ngoName: targetNGO.name,
+      etaMins: targetNGO.estimated_time_mins,
+      distanceKm: targetNGO.distance_km,
+      portions: openSurplus.quantity_portions,
+      otp: newDisp.otp,
+    });
+
+    setSuccessMessage(`✅ Pickup request successfully dispatched to ${targetNGO.name}! Driver en route (~${targetNGO.estimated_time_mins} mins ETA). Handover OTP: ${newDisp.otp}`);
     onDataMutated();
   };
 
-  // Handle NGO accepting donation
+  // Handle NGO accepting donation manually
   const handleNgoAccept = (reqId: string) => {
     const disp = db.acceptRequest(reqId);
     setSuccessMessage(`Donation accepted! Assigned delivery OTP: ${disp.otp}. Routing vehicle.`);
@@ -85,7 +102,6 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
     }, 1200);
   };
 
-  const activeSurplus = surplusList.find((s) => s.status === 'OPEN' || s.status === 'REQUESTED');
   const pendingNgoRequests = requests.filter((r) => r.status === 'PENDING_NGO');
 
   return (
@@ -104,10 +120,41 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
         </p>
       </div>
 
-      {successMessage && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
+      {/* Success Banner */}
+      {requestSuccess && (
+        <div className="p-5 rounded-3xl bg-emerald-50 border-2 border-emerald-300 text-emerald-950 shadow-card animate-in fade-in space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-emerald-900">
+                  Pickup Dispatched & Assigned to {requestSuccess.ngoName}!
+                </h4>
+                <p className="text-xs text-emerald-700">
+                  {requestSuccess.portions} portions allocated • Distance: {requestSuccess.distanceKm} km (~{requestSuccess.etaMins} mins travel time)
+                </p>
+              </div>
+            </div>
+
+            <span className="text-xs font-mono font-black px-2.5 py-1 rounded-lg bg-white border border-emerald-200 text-[#FA8128]">
+              OTP: {requestSuccess.otp}
+            </span>
+          </div>
+
+          <div className="pt-2 border-t border-emerald-200 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-emerald-800 font-medium">
+              💡 Vehicle dispatched. Proceed to the Logistics page to track delivery and confirm the 6-digit OTP.
+            </p>
+            <button
+              onClick={() => onNavigate('logistics')}
+              className="px-5 py-2 rounded-xl bg-[#FA8128] hover:bg-[#E6711B] text-white text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5"
+            >
+              <span>Proceed to Logistics & Verify OTP</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -125,51 +172,41 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
               </h3>
             </div>
 
-            {inspectedBatch ? (
-              <div className="p-4 rounded-2xl bg-[#FFEADB] border border-[#FFDEC4] space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h4 className="text-sm font-extrabold text-[#133830]">
-                      {inspectedBatch.food_name}
-                    </h4>
-                    <p className="text-[11px] text-[#64748B]">
-                      Prepared at {inspectedBatch.kitchen_name}
-                    </p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    Grade A (94%)
+            <div className="p-5 rounded-2xl bg-[#FFEADB] border border-[#FFDEC4] space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-extrabold text-[#133830]">
+                    {inspectedBatch?.food_name || 'Rice + Paneer Butter Masala'}
+                  </h4>
+                  <p className="text-[11px] text-[#64748B]">
+                    Prepared at {inspectedBatch?.kitchen_name || 'ABC College Central Kitchen'}
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                  Grade A (94%)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                <div className="p-2.5 rounded-xl bg-white/90 border border-orange-100">
+                  <span className="text-[10px] text-[#64748B] block font-medium">Quantity</span>
+                  <span className="font-extrabold text-[#133830] text-sm">
+                    {displayPortions} Portions
                   </span>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                  <div className="p-2 rounded-xl bg-white/80">
-                    <span className="text-[10px] text-[#64748B] block font-medium">Quantity</span>
-                    <span className="font-extrabold text-[#133830]">
-                      {inspectedBatch.surplus_portions} Portions
-                    </span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white/80">
-                    <span className="text-[10px] text-[#64748B] block font-medium">Safe Window</span>
-                    <span className="font-extrabold text-emerald-700">
-                      4 Hours Left
-                    </span>
-                  </div>
+                <div className="p-2.5 rounded-xl bg-white/90 border border-orange-100">
+                  <span className="text-[10px] text-[#64748B] block font-medium">Safe Window</span>
+                  <span className="font-extrabold text-emerald-700 text-sm">
+                    4 Hours Left
+                  </span>
                 </div>
+              </div>
 
-                {inspectedBatch.status !== 'SURPLUS_DECLARED' && inspectedBatch.status !== 'MATCHED' && inspectedBatch.status !== 'DELIVERED' && (
-                  <button
-                    onClick={handleDeclareSurplus}
-                    className="w-full py-2.5 rounded-xl bg-[#FA8128] hover:bg-[#E6711B] text-white text-xs font-bold shadow-xs transition-all"
-                  >
-                    Declare Surplus to Pool
-                  </button>
-                )}
+              <div className="p-2.5 rounded-xl bg-white/70 text-[11px] text-[#475569]">
+                ✓ Multi-angle 3-photo inspection passed <br />
+                ✓ Verified safe for community redistribution
               </div>
-            ) : (
-              <div className="p-6 text-center text-xs text-[#64748B] bg-[#FAF7F2] rounded-2xl border border-[#F0EAE1]">
-                No inspected batches ready yet. Complete Stage 3 inspection first.
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Right: NGO Matching & Request Dispatch (7 cols) */}
@@ -195,12 +232,12 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
                     onClick={() => setSelectedNGOId(ngo.id)}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? 'bg-[#FFF8F2] border-[#FA8128] shadow-sm'
+                        ? 'bg-[#FFF8F2] border-[#FA8128] ring-1 ring-[#FA8128] shadow-sm'
                         : 'bg-[#FAF7F2] border-[#F0EAE1] hover:bg-white'
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white border border-[#F0EAE1] flex items-center justify-center font-bold text-[#FA8128] text-base shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-white border border-[#F0EAE1] flex items-center justify-center font-bold text-[#FA8128] text-base shrink-0 shadow-2xs">
                         🏛️
                       </div>
                       <div>
@@ -236,7 +273,7 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
 
             <button
               onClick={handleRequestPickup}
-              className="w-full py-3.5 rounded-2xl bg-[#133830] hover:bg-[#1B4A3F] text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-[#133830] hover:bg-[#1B4A3F] text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 scale-100 hover:scale-[1.01]"
             >
               <span>Request Pickup From Selected NGO</span>
               <ArrowRight className="w-4 h-4" />
@@ -297,9 +334,9 @@ export const Redistribution: React.FC<RedistributionProps> = ({ onNavigate, onDa
 
             {pendingNgoRequests.length === 0 && (
               <div className="p-8 text-center text-xs text-[#64748B] bg-[#FAF7F2] rounded-2xl">
-                <p className="font-bold text-[#133830]">No pending donation requests right now.</p>
+                <p className="font-bold text-[#133830]">All incoming requests are currently processed.</p>
                 <p className="mt-1">
-                  Switch to Kitchen Operator in the top bar to request a pickup, or click "Load Demo Data" to populate requests.
+                  Switch to Kitchen in the top bar to request a pickup, or view active dispatches in Logistics.
                 </p>
               </div>
             )}
