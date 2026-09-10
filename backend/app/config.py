@@ -2,7 +2,7 @@ import os
 from pydantic import BaseModel
 
 class Settings(BaseModel):
-    APP_NAME: str = "Annapurna AI - MoFPI Smart Food Waste Ecosystem"
+    APP_NAME: str = "FoodResQ - MoFPI Smart Food Waste Ecosystem"
     APP_VERSION: str = "1.0.0"
     API_PREFIX: str = "/api"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
