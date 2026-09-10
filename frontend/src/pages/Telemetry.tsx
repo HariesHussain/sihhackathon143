@@ -1,274 +1,158 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Activity,
   Thermometer,
   AlertTriangle,
-  Zap,
-  Clock,
   Flame,
-  ShieldCheck,
-  CheckCircle2,
-  RefreshCw,
-  Sparkles,
-  Play,
   RotateCcw,
+  CheckCircle2,
+  Cpu,
 } from 'lucide-react';
-import { api, MOCK_TELEMETRY } from '../services/api';
-import { StorageTelemetryItem, PlantLossAnalytics } from '../types';
+import { db } from '../services/db';
+import { ColdStorageUnit } from '../types';
 import { StatusPill } from '../components/ui/StatusPill';
 
 export const Telemetry: React.FC = () => {
-  const [telemetry, setTelemetry] = useState<StorageTelemetryItem[]>(MOCK_TELEMETRY);
-  const [plantLosses, setPlantLosses] = useState<PlantLossAnalytics | null>(null);
-  const [isBreachSimulated, setIsBreachSimulated] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [units, setUnits] = useState<ColdStorageUnit[]>(db.getColdStorage());
+  const [alertBanner, setAlertBanner] = useState<string | null>(null);
 
-  const fetchTelemetryData = async () => {
+  const handleSimulateBreach = (unitId: string) => {
     try {
-      const [telData, lossData] = await Promise.all([
-        api.getLiveTelemetry(),
-        api.getPlantInefficiencies(),
-      ]);
-      setTelemetry(telData);
-      setPlantLosses(lossData);
+      const updated = db.simulateTemperatureBreach(unitId, 14.8);
+      setUnits([...db.getColdStorage()]);
+      setAlertBanner(`WARNING: Storage temperature in ${updated.unit_name} exceeded safe threshold! (Current: 14.8°C, Max: ${updated.safe_max_celsius}°C)`);
     } catch (err) {
       console.error(err);
     }
   };
 
-  useEffect(() => {
-    fetchTelemetryData();
-  }, []);
-
-  const handleSimulateBreach = async () => {
-    setLoading(true);
-    try {
-      // Simulate breach on Unit #1: spike temp to 14.8°C
-      const updated = await api.simulateBreach('unit_cr_01', 14.8);
-      setTelemetry((prev) =>
-        prev.map((u) => (u.unit_id === 'unit_cr_01' ? updated : u))
-      );
-      setIsBreachSimulated(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetTelemetry = async () => {
-    setIsBreachSimulated(false);
-    fetchTelemetryData();
+  const handleReset = () => {
+    db.resetColdStorage();
+    setUnits([...db.getColdStorage()]);
+    setAlertBanner(null);
   };
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-[#133830] to-[#1B4A3F] rounded-3xl p-6 sm:p-8 text-white shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-300 text-xs font-bold mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Agent 4: Industrial Plant Telemetry & Cold-Chain Sentinel</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Real-Time RTD Sensors & Operational Anomaly Engine
-          </h2>
-          <p className="text-xs sm:text-sm text-[#96B3AB] mt-2 leading-relaxed">
-            Continuous IoT telemetry monitoring across cold storage rooms, chilling silos, and automated packaging lines. Instantly flags thermal drift above 4°C, compressor overloads, and mechanical packaging bottlenecks within 30 seconds.
-          </p>
+      {/* Top Banner with Honest Labeling */}
+      <div className="bg-gradient-to-r from-[#133830] to-[#1B4A3F] rounded-3xl p-6 text-white shadow-card">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-amber-300 text-xs font-bold mb-2">
+          <Cpu className="w-3.5 h-3.5" />
+          <span>SIMULATED SENSOR TELEMETRY (DEMO)</span>
         </div>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+          Cold Storage & Storage Temperature Monitoring
+        </h2>
+        <p className="text-xs text-[#96B3AB] mt-1 max-w-2xl leading-relaxed">
+          Demonstrates how IoT RTD thermal sensors monitor cooked inventory holding chambers to detect thermal drift and prevent batch spoilage.
+        </p>
 
-        {/* Demo Simulator Buttons for Judges */}
-        <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-          {!isBreachSimulated ? (
-            <button
-              onClick={handleSimulateBreach}
-              disabled={loading}
-              className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-2 animate-pulse"
-            >
-              <Flame className="w-4 h-4" />
-              <span>Simulate Thermal Breach (Demo)</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleResetTelemetry}
-              className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Reset to Normal (4.0°C)</span>
-            </button>
-          )}
+        <div className="flex gap-2 mt-4 pt-3 border-t border-white/10">
+          <button
+            onClick={() => handleSimulateBreach('CS-01')}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+          >
+            <Flame className="w-3.5 h-3.5" />
+            <span>Simulate Temperature Breach</span>
+          </button>
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Sensors to Normal</span>
+          </button>
         </div>
       </div>
 
-      {/* Live Cold Storage Chamber Cards */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-extrabold text-[#133830] tracking-tight">
-            Cold-Chain Chamber Sensor Gauges
-          </h3>
-          <span className="text-xs font-semibold text-[#64748B] flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            <span>Sampling every 2.5s</span>
-          </span>
+      {/* Active Breach Alert Banner */}
+      {alertBanner && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs font-bold flex items-center gap-3 animate-in fade-in">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+          <div>
+            <p className="font-extrabold">{alertBanner}</p>
+            <p className="text-[11px] text-rose-700 font-medium mt-0.5">
+              Automated high-priority alert triggered for kitchen supervisor. Food inventory quarantined.
+            </p>
+          </div>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {telemetry.map((unit) => {
-            const isCritical = unit.status === 'CRITICAL';
-            const isWarning = unit.status === 'WARNING';
+      {/* Sensor Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {units.map((unit) => {
+          const isCritical = unit.status === 'CRITICAL';
+          return (
+            <div
+              key={unit.unit_id}
+              className={`p-6 rounded-3xl border shadow-card transition-all flex flex-col justify-between ${
+                isCritical
+                  ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20'
+                  : 'bg-white border-[#F0EAE1]'
+              }`}
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-[#64748B]">
+                      {unit.unit_id} • SIMULATED SENSOR
+                    </span>
+                    <h4 className="text-sm font-extrabold text-[#133830] mt-0.5">
+                      {unit.unit_name}
+                    </h4>
+                    <p className="text-[11px] text-[#64748B]">{unit.facility}</p>
+                  </div>
+                  <StatusPill status={unit.status} size="sm" />
+                </div>
 
-            return (
-              <div
-                key={unit.unit_id}
-                className={`p-6 rounded-3xl border shadow-card transition-all flex flex-col justify-between ${
-                  isCritical
-                    ? 'bg-rose-50/90 border-rose-300 ring-2 ring-rose-500/20'
-                    : isWarning
-                    ? 'bg-amber-50/80 border-amber-300'
-                    : 'bg-white border-[#F0EAE1]'
-                }`}
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B]">
-                        {unit.unit_id}
-                      </span>
-                      <h4 className="text-sm font-extrabold text-[#133830] mt-0.5">
-                        {unit.unit_name}
-                      </h4>
-                      <p className="text-[11px] text-[#64748B]">{unit.facility}</p>
-                    </div>
-                    <StatusPill status={unit.status} size="sm" />
+                {/* Temperature Box */}
+                <div className="my-4 p-4 rounded-2xl bg-[#FAF7F2] border border-[#F0EAE1] flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] uppercase">
+                      Current Temp
+                    </span>
+                    <p
+                      className={`text-3xl font-black mt-0.5 ${
+                        isCritical ? 'text-rose-600' : 'text-[#133830]'
+                      }`}
+                    >
+                      {unit.current_temp_celsius.toFixed(1)}°C
+                    </p>
                   </div>
 
-                  {/* Temperature Gauge Display */}
-                  <div className="my-4 p-4 rounded-2xl bg-[#FAF7F2] border border-[#F0EAE1] flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold text-[#64748B] uppercase">Current Temp</p>
-                      <p
-                        className={`text-3xl font-black ${
-                          isCritical
-                            ? 'text-rose-600'
-                            : isWarning
-                            ? 'text-amber-600'
-                            : 'text-[#133830]'
-                        }`}
-                      >
-                        {unit.current_temp_celsius.toFixed(1)}°C
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-[#64748B] uppercase">Setpoint</p>
-                      <p className="text-base font-extrabold text-[#64748B]">
-                        {unit.setpoint_temp_celsius.toFixed(1)}°C
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Telemetry Metrics: Humidity, Compressor, Door */}
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1]">
-                      <p className="text-[10px] text-[#64748B] font-bold">Humidity</p>
-                      <p className="font-extrabold text-[#133830] mt-0.5">{unit.humidity_rh}%</p>
-                    </div>
-                    <div className="p-2 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1]">
-                      <p className="text-[10px] text-[#64748B] font-bold">Load</p>
-                      <p className="font-extrabold text-[#133830] mt-0.5">{unit.compressor_load_pct}%</p>
-                    </div>
-                    <div className="p-2 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1]">
-                      <p className="text-[10px] text-[#64748B] font-bold">Door</p>
-                      <p className={`font-extrabold text-[11px] mt-0.5 ${unit.door_status.includes('BREACH') ? 'text-rose-600' : 'text-[#133830]'}`}>
-                        {unit.door_status}
-                      </p>
-                    </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-[#64748B] uppercase">
+                      Safe Range
+                    </span>
+                    <p className="text-xs font-bold text-[#64748B] mt-0.5">
+                      {unit.safe_min_celsius}°C to {unit.safe_max_celsius}°C
+                    </p>
+                    <span className="text-[10px] text-[#94A3B8]">
+                      Setpoint: {unit.setpoint_temp_celsius}°C
+                    </span>
                   </div>
                 </div>
 
-                {isCritical && (
-                  <div className="mt-4 p-2.5 rounded-xl bg-rose-200/60 border border-rose-300 text-rose-900 text-xs font-bold flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-700" />
-                    <span>Thermal breach! Inventory quarantine alert sent to supervisor.</span>
-                  </div>
-                )}
+                <div className="flex items-center justify-between text-xs text-[#64748B] pt-2 border-t border-[#F0EAE1]">
+                  <span>Humidity: <strong>{unit.humidity_rh}%</strong></span>
+                  <span className="text-[11px]">Sampling every 3s</span>
+                </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Industrial Waste & Mechanical Bottlenecks Section */}
-      <div className="bg-white border border-[#F0EAE1] rounded-3xl p-6 shadow-card">
-        <div className="flex items-center justify-between pb-4 border-b border-[#F0EAE1] mb-4">
-          <div>
-            <h3 className="text-lg font-extrabold text-[#133830] tracking-tight">
-              Processing Plant Inefficiencies & Scrap Losses
-            </h3>
-            <p className="text-xs text-[#64748B]">
-              Automated anomaly detection across mechanical packaging lines and bulk kettles
-            </p>
-          </div>
-        </div>
-
-        {/* Aggregate Loss Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <div className="p-4 rounded-2xl bg-[#FFEADB] border border-[#FFDEC4]">
-            <p className="text-xs font-bold text-[#64748B] uppercase">Raw Material Scrap</p>
-            <p className="text-2xl font-black text-[#133830] mt-0.5">
-              {plantLosses?.total_raw_material_loss_kg || 140.5} kg
-            </p>
-          </div>
-          <div className="p-4 rounded-2xl bg-[#FEF6D8] border border-[#FDF0BE]">
-            <p className="text-xs font-bold text-[#64748B] uppercase">Financial Scrap Loss</p>
-            <p className="text-2xl font-black text-[#133830] mt-0.5">
-              ₹{plantLosses?.total_financial_loss_inr?.toLocaleString() || '16,200'}
-            </p>
-          </div>
-          <div className="p-4 rounded-2xl bg-[#FEE4E8] border border-[#FCD3DC]">
-            <p className="text-xs font-bold text-[#64748B] uppercase">Packaging Downtime</p>
-            <p className="text-2xl font-black text-[#BE123C] mt-0.5">
-              {plantLosses?.total_machine_downtime_minutes || 57} mins
-            </p>
-          </div>
-          <div className="p-4 rounded-2xl bg-[#E1F1FD] border border-[#CEE7FC]">
-            <p className="text-xs font-bold text-[#64748B] uppercase">Excess Energy Spike</p>
-            <p className="text-2xl font-black text-[#0369A1] mt-0.5">
-              {plantLosses?.excess_energy_consumed_kwh || 45.7} kWh
-            </p>
-          </div>
-        </div>
-
-        {/* Loss Events Stream Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#F0EAE1] text-[#64748B] font-bold uppercase tracking-wider">
-                <th className="py-2.5 px-3">Production Line</th>
-                <th className="py-2.5 px-3">Loss Classification</th>
-                <th className="py-2.5 px-3">Yield Scrap (kg)</th>
-                <th className="py-2.5 px-3">Cost Impact</th>
-                <th className="py-2.5 px-3">Root Cause Diagnosis</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F0EAE1]">
-              {plantLosses?.recent_loss_events.map((event) => (
-                <tr key={event.id} className="hover:bg-[#FAF7F2]">
-                  <td className="py-3 px-3 font-bold text-[#133830]">{event.line_name}</td>
-                  <td className="py-3 px-3">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px] border border-slate-200">
-                      {event.category}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 font-extrabold text-[#133830]">{event.loss_kg} kg</td>
-                  <td className="py-3 px-3 font-bold text-rose-600">₹{event.cost_inr.toLocaleString()}</td>
-                  <td className="py-3 px-3 text-[#64748B]">{event.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              {isCritical ? (
+                <div className="mt-4 pt-3 border-t border-rose-200 text-[11px] text-rose-800 font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Threshold Exceeded: Holding unsafe</span>
+                </div>
+              ) : (
+                <div className="mt-4 pt-3 border-t border-[#F0EAE1] text-[11px] text-emerald-800 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Thermal Holding Stable</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

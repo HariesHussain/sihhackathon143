@@ -72,10 +72,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       name: 'Agent 5: ESG & Compliance Officer',
       icon: ShieldCheck,
       color: 'from-purple-500 to-indigo-500',
-      role: 'MoFPI Carbon & Groundwater Footprint Auditor',
+      role: 'Environmental & Groundwater Impact Auditor',
       description:
-        'Audits verified food transfers and translates prevented waste into avoided greenhouse emissions (2.5 kg CO₂e / kg food) and conserved groundwater (1,200 L / kg). Produces tamper-evident audit reports stamped with SHA-256 signatures.',
-      metric: 'UN SDG 2, 12.3 & 13 Certified Accounting',
+        'Audits verified food transfers and translates prevented waste into estimated greenhouse emissions avoided (2.5 kg CO₂e / kg food) and conserved groundwater (1,200 L / kg). Grounded in IPCC empirical factors.',
+      metric: 'UN SDG 2, 12.3 & 13 Aligned Accounting',
     },
   ];
 
@@ -348,9 +348,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                     const viewMap: Record<number, AppView> = {
                       1: 'kitchen',
                       2: 'quality',
-                      3: 'redistribution',
+                      3: 'rescue',
                       4: 'telemetry',
-                      5: 'esg',
+                      5: 'impact',
                     };
                     onEnterApp(viewMap[current.id]);
                   }}

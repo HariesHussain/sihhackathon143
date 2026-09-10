@@ -3,21 +3,24 @@ import {
   LayoutDashboard,
   ChefHat,
   ScanEye,
-  MapPin,
+  HeartHandshake,
+  Truck,
   Activity,
   Award,
   LogOut,
-  Sparkles,
   Info,
   X,
+  Layers,
 } from 'lucide-react';
-import { AppView } from '../../types';
+import { AppView, UserRole } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   currentView: AppView;
   onNavigate: (view: AppView) => void;
   isOpen: boolean;
   onCloseMobile: () => void;
+  onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,16 +28,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   isOpen,
   onCloseMobile,
+  onLogout,
 }) => {
-  const menuItems = [
-    { id: 'landing' as AppView, label: 'About Project (Story)', icon: Info, isSpecial: true },
-    { id: 'dashboard' as AppView, label: 'Dashboard Overview', icon: LayoutDashboard },
-    { id: 'kitchen' as AppView, label: 'Kitchen & Demand AI', icon: ChefHat },
-    { id: 'quality' as AppView, label: 'Quality & Freshness', icon: ScanEye },
-    { id: 'redistribution' as AppView, label: 'Logistics & NGO Map', icon: MapPin },
-    { id: 'telemetry' as AppView, label: 'Plant & Cold Chain', icon: Activity },
-    { id: 'esg' as AppView, label: 'ESG & Compliance', icon: Award },
+  const { user, role } = useAuth();
+
+  // Navigation items structured as ONE logical product workflow
+  const allNavItems = [
+    { id: 'dashboard' as AppView, label: 'Dashboard', icon: LayoutDashboard, roles: ['kitchen_operator', 'ngo', 'admin'] },
+    { id: 'kitchen' as AppView, label: 'Kitchen & Demand AI', icon: ChefHat, roles: ['kitchen_operator', 'admin'] },
+    { id: 'quality' as AppView, label: 'Food Safety Check', icon: ScanEye, roles: ['kitchen_operator', 'admin'] },
+    { id: 'rescue' as AppView, label: 'Food Rescue & Surplus', icon: HeartHandshake, roles: ['kitchen_operator', 'ngo', 'admin'] },
+    { id: 'logistics' as AppView, label: 'Logistics & Deliveries', icon: Truck, roles: ['kitchen_operator', 'ngo', 'admin'] },
+    { id: 'telemetry' as AppView, label: 'Cold Chain (Simulated)', icon: Activity, roles: ['kitchen_operator', 'admin'] },
+    { id: 'impact' as AppView, label: 'Impact & ESG', icon: Award, roles: ['kitchen_operator', 'ngo', 'admin'] },
+    { id: 'landing' as AppView, label: 'Project Story (5yo)', icon: Info, roles: ['kitchen_operator', 'ngo', 'admin'], isSpecial: true },
   ];
+
+  // Filter based on active role
+  const visibleItems = allNavItems.filter((item) => item.roles.includes(role));
 
   return (
     <>
@@ -57,28 +68,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center justify-between mb-8">
             <div
               onClick={() => {
-                onNavigate('landing');
+                onNavigate('dashboard');
                 onCloseMobile();
               }}
               className="flex items-center gap-3 cursor-pointer group"
             >
-              {/* Cute Bag / Grocery Icon */}
+              {/* Illustrated Grocery Bag Logo */}
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FA8128] to-[#FF9F45] flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform">
                 <span className="text-2xl">🍱</span>
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-2xl font-bold tracking-tight text-white font-sans">
-                    Food<span className="text-[#FA8128]">ResQ</span>
-                  </h1>
-                </div>
-                <p className="text-[11px] text-[#96B3AB] tracking-wide uppercase font-semibold">
-                  MoFPI Food Waste AI
+                <h1 className="text-2xl font-bold tracking-tight text-white font-sans">
+                  Food<span className="text-[#FA8128]">ResQ</span>
+                </h1>
+                <p className="text-[11px] text-[#96B3AB] tracking-wide font-medium">
+                  Rescue Food. Reduce Waste.
                 </p>
               </div>
             </div>
 
-            {/* Close Button on Mobile */}
+            {/* Mobile Close Button */}
             <button
               onClick={onCloseMobile}
               className="lg:hidden p-2 rounded-xl text-[#96B3AB] hover:text-white hover:bg-[#1B4A3F] transition-colors"
@@ -89,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Navigation Menu */}
           <nav className="space-y-1.5">
-            {menuItems.map((item) => {
+            {visibleItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
 
@@ -100,14 +109,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onNavigate(item.id);
                     onCloseMobile();
                   }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-200 ${
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all duration-200 ${
                     isActive
-                      ? 'bg-[#FA8128] text-white shadow-lg shadow-[#FA8128]/25 font-bold scale-[1.02]'
+                      ? 'bg-[#FA8128] text-white shadow-lg shadow-[#FA8128]/25 scale-[1.02]'
                       : 'text-[#96B3AB] hover:bg-[#1B4A3F] hover:text-white'
                   } ${item.isSpecial && !isActive ? 'bg-[#184239] text-[#E0F2FE]' : ''}`}
                 >
                   <Icon
-                    className={`w-5 h-5 transition-transform ${
+                    className={`w-4 h-4 transition-transform ${
                       isActive ? 'text-white' : 'text-[#96B3AB]'
                     }`}
                   />
@@ -123,41 +132,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
         </div>
 
-        {/* Bottom Graphic & Footer (Matches Sepetbox Grocery Bag Illustration) */}
+        {/* Bottom User Profile & Sign Out */}
         <div className="p-6 pt-0">
-          {/* Grocery Bag Illustration Card */}
-          <div className="relative mb-4 p-4 rounded-2xl bg-gradient-to-br from-[#184239] to-[#0E2B25] border border-[#225348]/40 text-center overflow-hidden">
-            <div className="flex justify-center mb-2">
-              {/* Illustrated Grocery Bag Elements */}
-              <div className="relative">
-                <div className="text-4xl filter drop-shadow-md">🛍️</div>
-                <div className="absolute -top-2 -right-3 text-lg animate-bounce">🥕</div>
-                <div className="absolute -top-2 -left-3 text-lg">🥖</div>
+          {/* Active User Persona Card */}
+          <div className="mb-4 p-3.5 rounded-2xl bg-[#184239] border border-[#225348]/40">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#FA8128] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                {user?.avatar_initials || 'U'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-extrabold text-white truncate">
+                  {user?.full_name || 'Logged In User'}
+                </p>
+                <p className="text-[10px] text-[#96B3AB] truncate">
+                  {user?.organization_name}
+                </p>
               </div>
             </div>
-            <h4 className="text-xs font-bold text-white mb-0.5">
-              Zero Waste Mission
-            </h4>
-            <p className="text-[11px] text-[#96B3AB] leading-relaxed">
-              Target 12.3: 50% Reduction in Food Waste by 2030
-            </p>
-          </div>
 
-          {/* Quick Info & Logout */}
-          <div className="flex items-center justify-between pt-3 border-t border-[#1B4A3F]">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs text-[#96B3AB] font-medium">
-                Live Sentinel Mesh
+            <div className="mt-2.5 pt-2 border-t border-[#225348]/60 flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+                {role === 'kitchen_operator' ? 'Kitchen Operator' : role === 'ngo' ? 'NGO Receiver' : 'System Admin'}
               </span>
+              <button
+                onClick={onLogout}
+                className="text-[11px] text-[#96B3AB] hover:text-[#FA8128] font-bold flex items-center gap-1 transition-colors"
+              >
+                <LogOut className="w-3 h-3" />
+                <span>Sign Out</span>
+              </button>
             </div>
-            <button
-              onClick={() => onNavigate('landing')}
-              className="flex items-center gap-1.5 text-xs text-[#96B3AB] hover:text-[#FA8128] transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Exit</span>
-            </button>
           </div>
         </div>
       </aside>
